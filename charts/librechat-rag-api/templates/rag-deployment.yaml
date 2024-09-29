@@ -1,12 +1,12 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "rag.fullname" $ }}
+  name: {{ include "rag.fullname" . }}
   labels:
     {{- include "rag.labels" . | nindent 4 }}
     rag-component: rag
 spec:
-  replicas: {{ .Values.rag.replicaCount }}
+  replicas: {{ .Values.rag.replicaCount | default 1 }}
   selector:
     matchLabels:
       {{- include "rag.selectorLabels" . | nindent 6 }}
@@ -29,7 +29,7 @@ spec:
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
-        - name: {{ include "rag.fullname" $ }}-rag
+        - name: {{ include "rag.fullname" . }}-rag
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
           image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
@@ -45,32 +45,88 @@ spec:
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           envFrom:
-          - configMapRef:
-              name: {{ include "rag.fullname" $ }}-config
-          {{- if .Values.rag.existingSecret }}
-          - secretRef:
-              name: {{ .Values.rag.existingSecret }}
-          {{- end }}
+            - configMapRef:
+                name: {{ include "rag.fullname" . }}-config
+            {{- if .Values.rag.existingSecret }}
+            - secretRef:
+                name: {{ .Values.rag.existingSecret }}
+            {{- end }}
           env:
-          {{- if .Values.postgresql.auth.existingSecret }}
-          - name: POSTGRES_PASSWORD
-            valueFrom:
-              secretKeyRef:
-                name: {{ .Values.postgresql.auth.existingSecret }}
-                key: {{ .Values.postgresql.auth.existingSecretKey }}
-          {{- end }}
-          {{- if .Values.global.librechat.existingSecretName }}
-          - name: OPENAI_API_KEY
-            valueFrom:
-              secretKeyRef:
-                name: {{ .Values.global.librechat.existingSecretName }}
-                key: {{ .Values.global.librechat.existingSecretApiKey }}
-                optional: true
-          {{- end }}
- 
+            # PostgreSQL environment variables
+            {{- if .Values.postgresql.enabled }}
+              # Using PostgreSQL deployed by the chart
+              - name: POSTGRES_USER
+                value: {{ .Values.postgresql.auth.username }}
+              - name: POSTGRES_DB
+                value: {{ .Values.postgresql.auth.database }}
+              - name: DB_HOST
+                value: {{ .Release.Name }}-postgresql.{{ .Release.Namespace | lower }}.svc.cluster.local
+              - name: DB_PORT
+                value: {{ .Values.postgresql.service.port | default "5432" }}
+              - name: POSTGRES_PASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: {{ .Values.postgresql.auth.existingSecret | default (include "rag.fullname" .) }}-vectordb
+                    key: {{ .Values.postgresql.auth.existingSecretKey | default "postgres-password" }}
+            {{- else if .Values.rag.existingPostgresSecret }}
+              # Using existing PostgreSQL secret
+              - name: POSTGRES_USER
+                valueFrom:
+                  secretKeyRef:
+                    name: {{ .Values.rag.existingPostgresSecret }}
+                    key: POSTGRES_USER
+              - name: POSTGRES_PASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: {{ .Values.rag.existingPostgresSecret }}
+                    key: POSTGRES_PASSWORD
+              - name: POSTGRES_DB
+                valueFrom:
+                  secretKeyRef:
+                    name: {{ .Values.rag.existingPostgresSecret }}
+                    key: POSTGRES_DB
+              - name: DB_HOST
+                valueFrom:
+                  secretKeyRef:
+                    name: {{ .Values.rag.existingPostgresSecret }}
+                    key: DB_HOST
+              - name: DB_PORT
+                valueFrom:
+                  secretKeyRef:
+                    name: {{ .Values.rag.existingPostgresSecret }}
+                    key: DB_PORT
+            {{- end }}
 
+            # OpenAI environment variables
+            {{- if .Values.rag.existingOpenAISecret }}
+              - name: RAG_OPENAI_BASEURL
+                valueFrom:
+                  secretKeyRef:
+                    name: {{ .Values.rag.existingOpenAISecret }}
+                    key: RAG_OPENAI_BASEURL
+              - name: RAG_OPENAI_API_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: {{ .Values.rag.existingOpenAISecret }}
+                    key: RAG_OPENAI_API_KEY
+            {{- else if .Values.rag.openAI.createSecret }}
+              - name: RAG_OPENAI_BASEURL
+                valueFrom:
+                  secretKeyRef:
+                    name: {{ include "rag.fullname" . }}-openai
+                    key: baseURL
+              - name: RAG_OPENAI_API_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: {{ include "rag.fullname" . }}-openai
+                    key: apiKey
+            {{- else }}
+              - name: RAG_OPENAI_BASEURL
+                value: {{ .Values.rag.openAI.baseURL }}
+              - name: RAG_OPENAI_API_KEY
+                value: {{ .Values.rag.openAI.apiKey }}
+            {{- end }}
 
-      volumes:
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -83,3 +139,4 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+

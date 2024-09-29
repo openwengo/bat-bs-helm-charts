@@ -1,10 +1,16 @@
+
 # Required as vectorDB for RAG
 # provide context-aware responses based on user-uploaded files
 rag:
   enabled: true
   existingSecret: ''
+  existingPostgresSecret: ''  # Name of the existing PostgreSQL secret (optional)
+  existingOpenAISecret: ''    # Name of the existing OpenAI secret (optional)
+  openAI:
+    createSecret: false       # Set to true to create a new secret with the provided API key
+    apiKey: ''                # OpenAI API key (if not using an existing secret)
+    baseURL: ''               # OpenAI base URL (if not using an existing secret)
   configEnv:
-    DB_PORT: '5432'
     EMBEDDINGS_PROVIDER: openai
 
 image:
