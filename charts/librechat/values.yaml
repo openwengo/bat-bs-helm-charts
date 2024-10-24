@@ -121,6 +121,7 @@ librechat:
     enabled: true
     size: 10G
     accessModes: ReadWriteOnce
+    existingClaim: ""  # Use an existing claim instead of creating one
     # storageClassName: 
 
 # only lite RAG is supported

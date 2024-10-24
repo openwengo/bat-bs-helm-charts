@@ -77,7 +77,11 @@ spec:
       {{- if .Values.librechat.imageVolume.enabled }}
       - name: image-volume
         persistentVolumeClaim:
-          claimName: {{ include "librechat.fullname" $ }}-images
+          {{- if .Values.librechat.imageVolume.existingClaim }}
+          claimName: {{ .Values.librechat.imageVolume.existingClaim }}  # Use the existing PVC
+          {{- else }}
+          claimName: {{ include "librechat.fullname" $ }}-images  # Use the new PVC
+          {{- end }}
       {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
