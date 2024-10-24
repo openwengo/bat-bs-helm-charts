@@ -9,9 +9,13 @@ data:
   {{- if .Values.librechat.configEnv }}
   {{- toYaml .Values.librechat.configEnv | nindent 2 }}
   {{- end }}
+  {{- if (index .Values "meilisearch" "enabled") }}
   {{- if not (dig "configEnv" "MEILI_HOST" "" .Values.librechat) }}
+  {{- end }}
   MEILI_HOST: http://{{ include "meilisearch.fullname" .Subcharts.meilisearch }}.{{ .Release.Namespace | lower }}.svc.cluster.local:7700
   {{- end }}
+  {{- if (index .Values "mongodb" "enabled") }}
   {{- if not (dig "configEnv" "MONGO_URI" "" .Values.librechat) | default "" }}
   MONGO_URI: mongodb://{{ include "mongodb.service.nameOverride" .Subcharts.mongodb }}.{{ .Release.Namespace | lower }}.svc.cluster.local:27017/LibreChat
+  {{- end }}
   {{- end }}
